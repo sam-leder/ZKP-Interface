@@ -5,36 +5,31 @@ fn main() {
     dioxus::launch(App);
 }
 
-fn result_handler(
-    mut result: Signal<String>,
-    mut show_result: Signal<bool>,
-    error: Signal<String>,
-    show_error: Signal<bool>,
-    input1: String,
-    input2: String,
-) {
-    if let (Ok(num1), Ok(num2)) = (input1.parse::<i32>(), input2.parse::<i32>()) {
-        let answer = (num1 * num2).to_string();
-        result.set(answer);
-        show_result.set(true);
-    } else {
-        error_handler(error, show_error);
-    }
-}
-
-fn error_handler(mut error: Signal<String>, mut show_error: Signal<bool>) {
-    error.set(String::from("Error calculating result."));
-    show_error.set(true);
+fn multiply(x: i32, y: i32) -> i32 {
+    x * y
 }
 
 #[component]
 fn App() -> Element {
-    let result = use_signal(|| String::from(""));
-    let show_result = use_signal(|| false);
-    let error: Signal<String> = use_signal(|| String::from(""));
-    let show_error = use_signal(|| false);
-    let mut num1: Signal<String> = use_signal(|| String::from(""));
-    let mut num2: Signal<String> = use_signal(|| String::from(""));
+    let mut result = use_signal(String::new);
+    let mut show_result = use_signal(|| false);
+    let mut error = use_signal(String::new);
+    let mut show_error = use_signal(|| false);
+    let mut num1 = use_signal(String::new);
+    let mut num2 = use_signal(String::new);
+
+    let mut result_handler = move || {
+        if let (Ok(value1), Ok(value2)) = (num1().parse::<i32>(), num2().parse::<i32>()) {
+            let answer = multiply(value1, value2).to_string();
+            result.set(answer);
+            show_result.set(true);
+            show_error.set(false);
+        } else {
+            error.set(String::from("Error calculating result."));
+            show_error.set(true);
+            show_result.set(false);
+        }
+    };
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -43,12 +38,10 @@ fn App() -> Element {
             p { class: "subtitle", "Calculated in Rust. Very advanced mathematics" }
 
             div { class: "input-group",
-                label { r#for: "num1", "First Number" }
+                label { for: "num1", "First Number" }
                 input {
-                    oninput: move |evt| {
-                        num1.set(evt.value().clone());
-                    },
-                    r#type: "number",
+                    oninput: move |evt| num1.set(evt.value()),
+                    type: "number",
                     id: "num1",
                     placeholder: "Enter first number",
                     step: "any",
@@ -56,12 +49,10 @@ fn App() -> Element {
             }
 
             div { class: "input-group",
-                label { r#for: "num2", "Second Number" }
+                label { for: "num2", "Second Number" }
                 input {
-                    oninput: move |evt| {
-                        num2.set(evt.value().clone());
-                    },
-                    r#type: "number",
+                    oninput: move |evt| num2.set(evt.value()),
+                    type: "number",
                     id: "num2",
                     placeholder: "Enter second number",
                     step: "any",
@@ -69,7 +60,7 @@ fn App() -> Element {
             }
 
             button {
-                onclick: move |_| { result_handler(result, show_result, error, show_error, num1(), num2()) },
+                onclick: move |_| result_handler(),
                 id: "calculate",
                 "Calculate Product"
             }
