@@ -1,22 +1,23 @@
-use dioxus::logger::tracing::{info, Level};
 use dioxus::prelude::*;
-use std::time::Duration;
+// use std::time::Duration;
 
-#[derive(Clone, PartialEq)]
+use dioxus::logger::tracing::{info, Level};
+
+#[derive(Clone, PartialEq, Debug)]
 struct ClientData {
     name: String,
     age: String,
     income: String,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 struct ProcessingResult {
     client_data: ClientData,
     score: f64,
     status: String,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum Screen {
     ClientInput,
     ServerProcessing,
@@ -29,7 +30,6 @@ fn main() {
 }
 
 fn app() -> Element {
-    info!("App rendered");
     let mut current_screen = use_signal(|| Screen::ClientInput);
     let mut client_data = use_signal(|| ClientData {
         name: String::new(),
@@ -38,8 +38,24 @@ fn app() -> Element {
     });
     let mut result = use_signal(|| None::<ProcessingResult>);
 
+    // Debug: Log screen changes
+    use_effect(move || {
+        let screen_name = match current_screen() {
+            Screen::ClientInput => "ClientInput",
+            Screen::ServerProcessing => "ServerProcessing",
+            Screen::ObserverReview => "ObserverReview",
+        };
+        info!("Current screen: {}", screen_name);
+    });
+
     rsx! {
         style { {CSS} }
+        div { class: "white-text",
+            h1 {"Debug section"}
+            h5 {"current_screen {current_screen:?}"}
+            h5 {"client_data {client_data:?}"}
+            h5 {"result {result:?}"}
+        }
         div { class: "app-container",
             div { class: "screens-wrapper",
                 // Screen 1
@@ -100,6 +116,13 @@ fn ClientInputScreen(
         !data.name.is_empty() && !data.age.is_empty() && !data.income.is_empty()
     };
 
+    // Debug logging
+    use_effect(move || {
+        if is_active {
+            info!("Client screen is now active");
+        }
+    });
+
     rsx! {
         div { class: "screen client-screen",
             div { class: "screen-header",
@@ -154,7 +177,7 @@ fn ClientInputScreen(
                         "Submit to Server →"
                     }
                 } else {
-                    p { class: "inactive-message", "Waiting for input..." }
+                    p { class: "inactive-message-vertical", "Waiting..." }
                 }
             }
         }
@@ -174,38 +197,55 @@ fn ServerProcessingScreen(
     let mut start_processing = move || {
         if !processing_started() && is_active {
             processing_started.set(true);
+            processing_complete.set(false); // Reset the flag
 
             let data = client_data.read().clone();
-            spawn(async move {
-                // async_std::task::sleep(Duration::from_secs(2)).await;
-                info!("Got data from client");
 
-                let age_num: u32 = data.age.parse().unwrap_or(0);
-                let income_num: f64 = data.income.parse().unwrap_or(0.0);
-                let score = (income_num / 1000.0) + (age_num as f64 * 1.5);
+            // Debug log
+            info!("Starting processing for: {}", data.name);
 
-                let status = if score > 100.0 {
-                    "Approved - High Score"
-                } else if score > 50.0 {
-                    "Approved - Moderate Score"
-                } else {
-                    "Under Review"
-                }
-                .to_string();
+            // spawn(async move {
+            // async_std::task::sleep(Duration::from_secs(2)).await;
 
-                result.set(Some(ProcessingResult {
-                    client_data: data,
-                    score,
-                    status,
-                }));
+            let age_num: u32 = data.age.parse().unwrap_or(0);
+            let income_num: f64 = data.income.parse().unwrap_or(0.0);
+            let score = (income_num / 1000.0) + (age_num as f64 * 1.5);
 
-                processing_complete.set(true);
-            });
+            let status = if score > 100.0 {
+                "Approved - High Score"
+            } else if score > 50.0 {
+                "Approved - Moderate Score"
+            } else {
+                "Under Review"
+            }
+            .to_string();
+
+            // Debug log
+            info!("Processing complete! Score: {score}");
+
+            result.set(Some(ProcessingResult {
+                client_data: data,
+                score,
+                status,
+            }));
+
+            processing_complete.set(true);
+            // });
         }
     };
 
+    // Reset processing state when screen becomes inactive
     use_effect(move || {
-        start_processing();
+        if !is_active {
+            processing_started.set(false);
+            processing_complete.set(false);
+        }
+    });
+
+    use_effect(move || {
+        if is_active {
+            start_processing();
+        }
     });
 
     rsx! {
@@ -246,14 +286,17 @@ fn ServerProcessingScreen(
 
                                 button {
                                     class: "btn btn-primary",
-                                    onclick: move |_| on_complete.call(()),
+                                    onclick: move |_| {
+                                        info!("Sending to observer...");
+                                        on_complete.call(())
+                                    },
                                     "Send to Observer →"
                                 }
                             }
                         }
                     }
                 } else {
-                    p { class: "inactive-message", "Awaiting data..." }
+                    p { class: "inactive-message-vertical", "Awaiting data" }
                 }
             }
         }
@@ -331,18 +374,21 @@ fn ObserverReviewScreen(
 
                         button {
                             class: "btn btn-secondary",
-                            onclick: move |_| on_restart.call(()),
+                            onclick: move |_| {
+                                info!("Restarting workflow...");
+                                on_restart.call(())
+                            },
                             "← Start New Review"
                         }
                     }
                 } else {
                     div { class: "review-card",
-                        p { class: "inactive-message", "Review pending..." }
+                        p { class: "inactive-message-vertical", "Review pending" }
                     }
                 }
             } else {
                 div { class: "review-card",
-                    p { class: "inactive-message", "Awaiting results..." }
+                    p { class: "inactive-message-vertical", "Awaiting results" }
                 }
             }
         }
@@ -489,6 +535,17 @@ const CSS: &str = r#"
         color: #718096;
         font-style: italic;
         padding: 2rem;
+    }
+
+    .inactive-message-vertical {
+        text-align: center;
+        color: #000000;
+        font-style: italic;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        margin: 0 auto;
+        padding: 1rem 0;
+        font-size: 0.9rem;
     }
 
     .form-group {
@@ -771,5 +828,9 @@ const CSS: &str = r#"
         to {
             transform: scale(1);
         }
+    }
+
+    .white-text {
+        color: #ffffff;
     }
 "#;
