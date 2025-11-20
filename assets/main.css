@@ -49,7 +49,7 @@ label {
     font-size: 14px;
 }
 
-input[type="number"] {
+input {
     width: 100%;
     padding: 12px;
     border: 2px solid #e0e0e0;
@@ -58,7 +58,7 @@ input[type="number"] {
     transition: border-color 0.3s;
 }
 
-input[type="number"]:focus {
+input:focus {
     outline: none;
     border-color: #667eea;
 }
@@ -92,7 +92,7 @@ button:active {
     background: #f8f9fa;
     border-radius: 8px;
     text-align: center;
-    display: none;
+    /* display: none; */
 }
 
 .result.show {
