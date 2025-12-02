@@ -1,7 +1,5 @@
+use dioxus::logger::tracing::info;
 use dioxus::prelude::*;
-// use std::time::Duration;
-
-use dioxus::logger::tracing::{info, Level};
 
 #[derive(Clone, PartialEq, Debug)]
 struct ClientData {
@@ -25,8 +23,31 @@ enum Screen {
 }
 
 fn main() {
-    dioxus::logger::init(Level::INFO).expect("logger failed to init");
+    dioxus::logger::init(dioxus::logger::tracing::Level::INFO).expect("logger failed to init");
     launch(app);
+}
+
+fn process_input(data: ClientData) -> ProcessingResult {
+    let age_num: u32 = data.age.parse().unwrap_or(0);
+    let income_num: f64 = data.income.parse().unwrap_or(0.0);
+    let score = (income_num / 1000.0) + (age_num as f64 * 1.5);
+
+    let status = if score > 100.0 {
+        "Approved - High Score"
+    } else if score > 50.0 {
+        "Approved - Moderate Score"
+    } else {
+        "Under Review"
+    }
+    .to_string();
+
+    info!("Processing complete: score={}", score);
+
+    ProcessingResult {
+        client_data: data,
+        score,
+        status,
+    }
 }
 
 fn app() -> Element {
@@ -116,13 +137,6 @@ fn ClientInputScreen(
         !data.name.is_empty() && !data.age.is_empty() && !data.income.is_empty()
     };
 
-    // Debug logging
-    use_effect(move || {
-        if is_active {
-            info!("Client screen is now active");
-        }
-    });
-
     rsx! {
         div { class: "screen client-screen",
             div { class: "screen-header",
@@ -191,67 +205,14 @@ fn ServerProcessingScreen(
     is_active: bool,
     on_complete: EventHandler<()>,
 ) -> Element {
-    let mut processing_started = use_signal(|| false);
-    let mut processing_complete = use_signal(|| false);
-
-    let mut start_processing = move || {
-        if !processing_started() && is_active {
-            processing_started.set(true);
-            processing_complete.set(false); // Reset the flag
-
-            let data = client_data.read().clone();
-
-            // Debug log
-            info!("Starting processing for: {}", data.name);
-
-            // spawn(async move {
-            // async_std::task::sleep(Duration::from_secs(2)).await;
-
-            let age_num: u32 = data.age.parse().unwrap_or(0);
-            let income_num: f64 = data.income.parse().unwrap_or(0.0);
-            let score = (income_num / 1000.0) + (age_num as f64 * 1.5);
-
-            let status = if score > 100.0 {
-                "Approved - High Score"
-            } else if score > 50.0 {
-                "Approved - Moderate Score"
-            } else {
-                "Under Review"
-            }
-            .to_string();
-
-            // Debug log
-            info!("Processing complete! Score: {score}");
-
-            result.set(Some(ProcessingResult {
-                client_data: data,
-                score,
-                status,
-            }));
-
-            processing_complete.set(true);
-            // });
-        }
-    };
-
-    // Reset processing state when screen becomes inactive
-    use_effect(move || {
-        if !is_active {
-            processing_started.set(false);
-            processing_complete.set(false);
-        }
-    });
-
-    use_effect(move || {
-        if is_active {
-            start_processing();
-        }
-    });
+    info!("active? {is_active}");
+    let has_result = result.read().is_some();
 
     rsx! {
         div { class: "screen server-screen",
             div { class: "screen-header",
                 div { class: "step-indicator", "Step 2 of 3" }
+
                 if is_active {
                     h1 { class: "screen-title", "Server Processing" }
                     p { class: "screen-subtitle", "Analyzing submitted data..." }
@@ -263,15 +224,19 @@ fn ServerProcessingScreen(
             div { class: "processing-card",
                 if is_active {
                     div { class: "processing-content",
-                        if !processing_complete() {
-                            div { class: "loading-state",
-                                div { class: "spinner" }
-                                p { class: "processing-text", "Processing data..." }
-                                div { class: "progress-bar",
-                                    div { class: "progress-fill" }
-                                }
+                        if !has_result {
+                            div { "<Some additional information...>" }
+                            button {
+                                class: "btn btn-primary process-button",
+                                onclick: move |_| {
+                                    let data = client_data.read().clone();
+                                    let output = process_input(data);
+                                    result.set(Some(output));
+                                },
+                                "Process input"
                             }
-                        } else {
+                        }
+                        else {
                             div { class: "complete-state",
                                 div { class: "checkmark", "✓" }
                                 p { class: "complete-text", "Processing Complete!" }
@@ -285,7 +250,7 @@ fn ServerProcessingScreen(
                                 }
 
                                 button {
-                                    class: "btn btn-primary",
+                                    class: "btn btn-primary send-button",
                                     onclick: move |_| {
                                         info!("Sending to observer...");
                                         on_complete.call(())
@@ -622,42 +587,6 @@ const CSS: &str = r#"
         justify-content: center;
     }
 
-    .loading-state {
-        width: 100%;
-    }
-
-    .spinner {
-        width: 80px;
-        height: 80px;
-        border: 6px solid #f3f4f6;
-        border-top: 6px solid #11998e;
-        border-radius: 50%;
-        margin: 0 auto 2rem;
-        animation: spin 1s linear infinite;
-    }
-
-    .processing-text {
-        font-size: 1.3rem;
-        color: #4a5568;
-        font-weight: 600;
-        margin-bottom: 2rem;
-    }
-
-    .progress-bar {
-        width: 100%;
-        height: 8px;
-        background: #e2e8f0;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
-        animation: progress 2s ease-in-out;
-        width: 100%;
-    }
-
     .complete-state {
         width: 100%;
     }
@@ -806,21 +735,6 @@ const CSS: &str = r#"
         }
     }
 
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    @keyframes progress {
-        from {
-            width: 0%;
-        }
-        to {
-            width: 100%;
-        }
-    }
-
     @keyframes scaleIn {
         from {
             transform: scale(0);
@@ -832,5 +746,26 @@ const CSS: &str = r#"
 
     .white-text {
         color: #ffffff;
+    }
+
+    .process-button {
+        margin-top: 2rem;
+    }
+
+    .complete-state {
+        animation: fadeIn 0.5s ease;
+    }
+
+    .processing-content .process-button {
+        display: block;
+        margin-top: 4rem;
+    }
+
+    .result-preview {
+        margin-top: 1.5rem;
+    }
+
+    .send-button {
+        margin-top: 1.5rem;
     }
 "#;
