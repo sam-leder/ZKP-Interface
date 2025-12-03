@@ -6,13 +6,16 @@ struct ClientData {
     name: String,
     age: String,
     income: String,
+    mortgage: String,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 struct ProcessingResult {
     client_data: ClientData,
-    score: f64,
-    status: String,
+    approved: bool,
+    commitment: String,
+    proof: String,
+    signature: String,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -32,21 +35,19 @@ fn process_input(data: ClientData) -> ProcessingResult {
     let income_num: f64 = data.income.parse().unwrap_or(0.0);
     let score = (income_num / 1000.0) + (age_num as f64 * 1.5);
 
-    let status = if score > 100.0 {
-        "Approved - High Score"
-    } else if score > 50.0 {
-        "Approved - Moderate Score"
-    } else {
-        "Under Review"
-    }
-    .to_string();
+    let approved = score > 100.0;
+    let commitment = "COMMITMENT".to_string();
+    let proof = "PROOF".to_string();
+    let signature = "SIGNATURE".to_string();
 
     info!("Processing complete: score={}", score);
 
     ProcessingResult {
         client_data: data,
-        score,
-        status,
+        approved,
+        commitment,
+        proof,
+        signature,
     }
 }
 
@@ -56,6 +57,7 @@ fn app() -> Element {
         name: String::new(),
         age: String::new(),
         income: String::new(),
+        mortgage: String::new(),
     });
     let mut result = use_signal(|| None::<ProcessingResult>);
 
@@ -71,12 +73,6 @@ fn app() -> Element {
 
     rsx! {
         style { {CSS} }
-        div { class: "white-text",
-            h1 {"Debug section"}
-            h5 {"current_screen {current_screen:?}"}
-            h5 {"client_data {client_data:?}"}
-            h5 {"result {result:?}"}
-        }
         div { class: "app-container",
             div { class: "screens-wrapper",
                 // Screen 1
@@ -115,6 +111,7 @@ fn app() -> Element {
                                 name: String::new(),
                                 age: String::new(),
                                 income: String::new(),
+                                mortgage:String::new()
                             });
                             result.set(None);
                             current_screen.set(Screen::ClientInput);
@@ -122,6 +119,14 @@ fn app() -> Element {
                     }
                 }
             }
+        }
+
+        // Debug section
+        div { class: "white-text",
+            h1 {"Debug section"}
+            h5 {"current_screen {current_screen:?}"}
+            h5 {"client_data {client_data:?}"}
+            h5 {"result {result:?}"}
         }
     }
 }
@@ -134,7 +139,10 @@ fn ClientInputScreen(
 ) -> Element {
     let is_valid = {
         let data = client_data.read();
-        !data.name.is_empty() && !data.age.is_empty() && !data.income.is_empty()
+        !data.name.is_empty()
+            && !data.age.is_empty()
+            && !data.income.is_empty()
+            && !data.mortgage.is_empty()
     };
 
     rsx! {
@@ -184,11 +192,22 @@ fn ClientInputScreen(
                         }
                     }
 
+                    div { class: "form-group",
+                        label { "Mortgage amount ($):" }
+                        input {
+                            class: "input",
+                            r#type: "number",
+                            value: "{client_data.read().mortgage}",
+                            placeholder: "Enter the mortgage amount",
+                            oninput: move |e| client_data.write().mortgage = e.value(),
+                        }
+                    }
+
                     button {
                         class: "btn btn-primary",
                         disabled: !is_valid,
                         onclick: move |_| on_submit.call(()),
-                        "Submit to Server →"
+                        "Submit to Bank →"
                     }
                 } else {
                     p { class: "inactive-message-vertical", "Waiting..." }
@@ -209,15 +228,15 @@ fn ServerProcessingScreen(
     let has_result = result.read().is_some();
 
     rsx! {
-        div { class: "screen server-screen",
+        div { class: "screen bank-screen",
             div { class: "screen-header",
                 div { class: "step-indicator", "Step 2 of 3" }
 
                 if is_active {
-                    h1 { class: "screen-title", "Server Processing" }
+                    h1 { class: "screen-title", "Bank Processing" }
                     p { class: "screen-subtitle", "Analyzing submitted data..." }
                 } else {
-                    h1 { class: "screen-title-small", "Server" }
+                    h1 { class: "screen-title-small", "Bank" }
                 }
             }
 
@@ -244,18 +263,18 @@ fn ServerProcessingScreen(
                                 if let Some(res) = result.read().as_ref() {
                                     div { class: "result-preview",
                                         p { "Name: {res.client_data.name}" }
-                                        p { "Score: {res.score:.2}" }
-                                        p { "Status: {res.status}" }
+                                        p { "Score: {res.approved}" }
+                                        p { "Status: {res.proof}" }
                                     }
                                 }
 
                                 button {
                                     class: "btn btn-primary send-button",
                                     onclick: move |_| {
-                                        info!("Sending to observer...");
+                                        info!("Sending to regulator...");
                                         on_complete.call(())
                                     },
-                                    "Send to Observer →"
+                                    "Send to Regulator →"
                                 }
                             }
                         }
@@ -275,14 +294,14 @@ fn ObserverReviewScreen(
     on_restart: EventHandler<()>,
 ) -> Element {
     rsx! {
-        div { class: "screen observer-screen",
+        div { class: "screen regulator-screen",
             div { class: "screen-header",
                 div { class: "step-indicator", "Step 3 of 3" }
                 if is_active {
-                    h1 { class: "screen-title", "Observer Review" }
-                    p { class: "screen-subtitle", "Third-party verification and review" }
+                    h1 { class: "screen-title", "Regulator Review" }
+                    p { class: "screen-subtitle", "Verification of correctness" }
                 } else {
-                    h1 { class: "screen-title-small", "Observer" }
+                    h1 { class: "screen-title-small", "Regulator" }
                 }
             }
 
@@ -290,51 +309,43 @@ fn ObserverReviewScreen(
                 if is_active {
                     div { class: "review-card",
                         div { class: "review-section",
-                            h3 { "Client Information" }
-                            div { class: "info-grid",
-                                div { class: "info-item",
-                                    span { class: "info-label", "Name:" }
-                                    span { class: "info-value", "{res.client_data.name}" }
-                                }
-                                div { class: "info-item",
-                                    span { class: "info-label", "Age:" }
-                                    span { class: "info-value", "{res.client_data.age}" }
-                                }
-                                div { class: "info-item",
-                                    span { class: "info-label", "Income:" }
-                                    span { class: "info-value", "${res.client_data.income}" }
-                                }
-                            }
-                        }
-
-                        div { class: "review-section",
                             h3 { "Processing Results" }
                             div { class: "result-box",
                                 div { class: "result-item",
-                                    span { class: "result-label", "Calculated Score:" }
-                                    span { class: "result-value score", "{res.score:.2}" }
+                                    span { class: "result-label", "Approved:" }
+                                    span { class: "result-value score", "{res.approved}" }
                                 }
                                 div { class: "result-item",
-                                    span { class: "result-label", "Status:" }
-                                    span {
-                                        class: if res.status.contains("High") { "result-value status-high" }
-                                            else {
-                                                if res.status.contains("Moderate") { "result-value status-moderate" }
-                                                    else { "result-value status-review" }
-                                                },
-                                        "{res.status}"
-                                    }
+                                    span { class: "result-label", "Signature" }
+                                    span { class: "result-value score", "{res.approved}" }
+                                }
+                                div { class: "result-item",
+                                    span { class: "result-label", "Commitment" }
+                                    span { class: "result-value score", "{res.approved}" }
+                                }
+                                div { class: "result-item",
+                                    span { class: "result-label", "Proof" }
+                                    span { class: "result-value score", "{res.approved}" }
                                 }
                             }
                         }
 
-                        div { class: "review-section",
-                            h3 { "Observer Notes" }
-                            textarea {
-                                class: "observer-notes",
-                                placeholder: "Add your observations here...",
-                                rows: "4"
-                            }
+                        button {
+                            class: "btn btn-secondary",
+                            onclick: move |_| {
+                                info!("Restarting workflow...");
+                                on_restart.call(())
+                            },
+                            "Verify signature"
+                        }
+
+                        button {
+                            class: "btn btn-secondary",
+                            onclick: move |_| {
+                                info!("Restarting workflow...");
+                                on_restart.call(())
+                            },
+                            "Verify proof"
                         }
 
                         button {
@@ -424,13 +435,13 @@ const CSS: &str = r#"
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
 
-    /* Server Screen - Green/Teal Theme */
-    .server-screen {
+    /* Bank Screen - Green/Teal Theme */
+    .bank-screen {
         background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     }
 
-    /* Observer Screen - Pink/Red Theme */
-    .observer-screen {
+    /* Regulator Screen - Pink/Red Theme */
+    .regulator-screen {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
 
@@ -557,12 +568,12 @@ const CSS: &str = r#"
         color: white;
     }
 
-    .server-screen .btn-primary {
+    .bank-screen .btn-primary {
         background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
         color: white;
     }
 
-    .observer-screen .btn-secondary {
+    .regulator-screen .btn-secondary {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         color: white;
     }
@@ -708,7 +719,7 @@ const CSS: &str = r#"
         color: #ef4444;
     }
 
-    .observer-notes {
+    .regulator-notes {
         width: 100%;
         padding: 1rem;
         border: 2px solid #e2e8f0;
@@ -720,7 +731,7 @@ const CSS: &str = r#"
         transition: border-color 0.3s ease;
     }
 
-    .observer-notes:focus {
+    .regulator-notes:focus {
         border-color: #f5576c;
     }
 
