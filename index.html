@@ -5,14 +5,14 @@
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="UTF-8" />
-  <link rel="preload" as="script" href="/ZKP-Interface/assets/zkp_interface-b8bf451f62dcc0e1.js" crossorigin><link rel="preload" as="fetch" type="application/wasm" href="/ZKP-Interface/assets/zkp_interface_bg-d4c44da54e624548.wasm" crossorigin></head>
+  <link rel="preload" as="script" href="/ZKP-Interface/assets/zkp_interface-4ccbab18d82cd604.js" crossorigin><link rel="preload" as="fetch" type="application/wasm" href="/ZKP-Interface/assets/zkp_interface_bg-b7bee6dbf5ee0cac.wasm" crossorigin></head>
   <body>
     <div id="main"></div>
   <script>
             // We can't use a module script here because we need to start the script immediately when streaming
-            import("/ZKP-Interface/assets/zkp_interface-b8bf451f62dcc0e1.js").then(
+            import("/ZKP-Interface/assets/zkp_interface-4ccbab18d82cd604.js").then(
                 ({ default: init }) => {
-                init("/ZKP-Interface/assets/zkp_interface_bg-d4c44da54e624548.wasm").then((wasm) => {
+                init("/ZKP-Interface/assets/zkp_interface_bg-b7bee6dbf5ee0cac.wasm").then((wasm) => {
                     if (wasm.__wbindgen_start == undefined) {
                     wasm.main();
                     }
